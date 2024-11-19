@@ -14,23 +14,23 @@ from models.pipeline_factory import get_pipeline
 from training import train_utils
 
 # from models.backbones.spvnas.core.modules import dist
-cfg = get_config()
+cfg = get_config() #get_config: 加载配置文件，返回包含所有训练参数的配置对象（cfg），包括模型类型、学习率、批量大小等
 
-ch = logging.StreamHandler(sys.stdout)
+ch = logging.StreamHandler(sys.stdout) 
 logging.getLogger().setLevel(logging.INFO)
 logging.basicConfig(format='%(asctime)s %(message)s',
                     datefmt='%m/%d %H:%M:%S',
                     handlers=[ch])
-logging.basicConfig(level=logging.INFO, format="")
+logging.basicConfig(level=logging.INFO, format="") #日志输出到控制台，并设置信息格式和等级（INFO）
 
-
+#主函数负责初始化训练环境并执行训练任务。
 def main():
-    dist.init()
+    dist.init() #初始化分布式训练环境
     torch.backends.cudnn.benchmark = True
-    torch.cuda.set_device(dist.local_rank())
+    torch.cuda.set_device(dist.local_rank()) #torch.cuda.set_device：设置当前进程使用的 GPU，由 local_rank 指定
 
-    if (dist.rank() % dist.size() == 0):
-        writer = SummaryWriter(comment=f"_{cfg.job_id}")
+    if (dist.rank() % dist.size() == 0): #在主进程中（rank=0），初始化日志记录器和 TensorBoard 写入器
+        writer = SummaryWriter(comment=f"_{cfg.job_id}") #记录实验相关信息，例如任务 ID、训练管道名称和实验名
 
         logger = logging.getLogger()
         logging.info('\n' + ' '.join([sys.executable] + sys.argv))
@@ -80,7 +80,7 @@ def main():
                                     shuffle=True,
                                     dist=[dist.size(), dist.rank()])
 
-    for epoch in range(starting_epoch, cfg.max_epoch):
+    for epoch in range(starting_epoch, cfg.max_epoch): #迭代 epoch，每个 epoch 包括以下步骤
         if (dist.rank() % dist.size() == 0):
             lr = scheduler.get_last_lr()
             logging.info('\n' + '**** EPOCH %03d ****' %
@@ -116,9 +116,10 @@ def main():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+          #梯度清零 -> 反向传播计算梯度 -> 更新模型参数
 
             running_loss += loss.item()
-            if (i % cfg.loss_log_step) == (cfg.loss_log_step - 1):
+            if (i % cfg.loss_log_step) == (cfg.loss_log_step - 1): #每隔指定步骤记录一次平均损失，写入日志和 TensorBoard
                 avg_loss = running_loss / cfg.loss_log_step
                 avg_scene_loss = running_scene_loss / cfg.loss_log_step
                 avg_point_loss = running_point_loss / cfg.loss_log_step
@@ -140,9 +141,10 @@ def main():
                                       epoch * len(train_loader) + i)
                 running_loss, running_scene_loss, running_point_loss = 0.0, 0.0, 0.0
 
-        scheduler.step()
+        scheduler.step() #每个 epoch 后更新学习率
 
-        if cfg.save_model_after_epoch and (dist.rank() % dist.size() == 0):
+        if cfg.save_model_after_epoch and (dist.rank() % dist.size() == 0): 
+          # 保存模型检查点，包括当前 epoch、模型参数和优化器状态
             save_path = os.path.join(os.path.dirname(__file__), 'checkpoints')
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
