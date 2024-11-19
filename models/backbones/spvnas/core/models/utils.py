@@ -2,25 +2,27 @@ import torch
 import torchsparse.nn.functional as F
 from torchsparse import PointTensor, SparseTensor
 from torchsparse.nn.utils import get_kernel_offsets
-
+#Python 中的一个模块定义，指定了模块公开的接口，即导入时可以直接使用的函数列表：initial_voxelize、point_to_voxel 和 voxel_to_point
 __all__ = ['initial_voxelize', 'point_to_voxel', 'voxel_to_point']
 
 
 # z: PointTensor
 # return: SparseTensor
-def initial_voxelize(z, init_res, after_res):
+def initial_voxelize(z, init_res, after_res):  #将一个 PointTensor 数据进行初始体素化操作
     new_float_coord = torch.cat(
         [(z.C[:, :3] * init_res) / after_res, z.C[:, -1].view(-1, 1)], 1)
+    #z: 输入的点云数据，类型为 PointTensor，包含坐标 (C) 和特征 (F)，init_res: 初始分辨率，通常用于对点云坐标进行归一化，after_res: 体素化后的目标分辨率
+    
 
     pc_hash = F.sphash(torch.floor(new_float_coord).int())
-    sparse_hash = torch.unique(pc_hash)
-    idx_query = F.sphashquery(pc_hash, sparse_hash)
-    counts = F.spcount(idx_query.int(), len(sparse_hash))
+    sparse_hash = torch.unique(pc_hash) # 使用 torch.floor(new_float_coord) 取整后，计算点云的哈希值 pc_hash，并从中生成唯一的稀疏哈希值 sparse_hash
+    idx_query = F.sphashquery(pc_hash, sparse_hash) #通过 sphashquery 函数，将原始点云哈希值 pc_hash 映射到稀疏哈希值 sparse_hash，返回索引 idx_query
+    counts = F.spcount(idx_query.int(), len(sparse_hash)) #统计每个体素内的点数
 
     inserted_coords = F.spvoxelize(torch.floor(new_float_coord), idx_query,
-                                   counts)
-    inserted_coords = torch.round(inserted_coords).int()
-    inserted_feat = F.spvoxelize(z.F, idx_query, counts)
+                                   counts) #spvoxelize 用于对输入点云特征和坐标进行体素化处理
+    inserted_coords = torch.round(inserted_coords).int() #inserted_coords 是最终的整数体素坐标
+    inserted_feat = F.spvoxelize(z.F, idx_query, counts) #inserted_feat 是插值后的体素特征
 
     new_tensor = SparseTensor(inserted_feat, inserted_coords, 1)
     new_tensor.cmaps.setdefault(new_tensor.stride, new_tensor.coords)
@@ -33,7 +35,8 @@ def initial_voxelize(z, init_res, after_res):
 
 # x: SparseTensor, z: PointTensor
 # return: SparseTensor
-def point_to_voxel(x, z):
+#将点云数据从 PointTensor 转换为目标体素表示 SparseTensor
+def point_to_voxel(x, z): #x: 输入的目标体素张量，类型为 SparseTensor z: 输入的点云数据，类型为 PointTensor
     if z.additional_features is None or z.additional_features.get('idx_query') is None\
        or z.additional_features['idx_query'].get(x.s) is None:
         #pc_hash = hash_gpu(torch.floor(z.C).int())
@@ -61,7 +64,7 @@ def point_to_voxel(x, z):
 
 # x: SparseTensor, z: PointTensor
 # return: PointTensor
-def voxel_to_point(x, z, nearest=False):
+def voxel_to_point(x, z, nearest=False): #将体素特征 SparseTensor 重新映射到点云空间 PointTensor
     if z.idx_query is None or z.weights is None or z.idx_query.get(
             x.s) is None or z.weights.get(x.s) is None:
         off = get_kernel_offsets(2, x.s, 1, device=z.F.device)
