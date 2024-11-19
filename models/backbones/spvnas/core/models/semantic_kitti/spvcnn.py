@@ -15,7 +15,9 @@ __all__ = ['SPVCNN']
 #BasicDeconvolutionBlock：用于上采样（反卷积）的模块，与卷积块类似，但使用了转置卷积（transposed convolution）实现
 class BasicConvolutionBlock(nn.Module):
     def __init__(self, inc, outc, ks=3, stride=1, dilation=1):
-        super().__init__()
+        #inc：输入通道数（in_channels），用于卷积层 outc：输出通道数（out_channels），卷积层的输出维度
+        #ks：卷积核大小（kernel_size），默认值为 3  stride：卷积步幅（stride），默认值为 1 dilation：膨胀系数（dilation），控制感受野扩展，默认值为 1
+        super().__init__() #调用父类的构造函数
         self.net = nn.Sequential(
             spnn.Conv3d(inc,
                                  outc,
@@ -31,7 +33,7 @@ class BasicConvolutionBlock(nn.Module):
 class BasicDeconvolutionBlock(nn.Module):
     def __init__(self, inc, outc, ks=3, stride=1):
         super().__init__()
-        self.net = nn.Sequential(
+        self.net = nn.Sequential(        #定义一个顺序模型 self.net，将多个操作组合为一个模块，顺序执行
             spnn.Conv3d(inc,
                                  outc,
                                  kernel_size=ks,
@@ -63,7 +65,7 @@ class ResidualBlock(nn.Module):
             nn.Sequential(
                 spnn.Conv3d(inc, outc, kernel_size=1, dilation=1, stride=stride),
                 spnn.BatchNorm(outc)
-            )
+            )# pnn.Conv3d 是一个特定框架（如 SparseConvNet 或 MinkowskiEngine）提供的稀疏 3D 卷积实现，专注于高效处理稀疏数据
 
         self.relu = spnn.ReLU(True)
 
@@ -178,10 +180,11 @@ class SPVCNN(nn.Module):
         self.dropout = nn.Dropout(0.3, True)
 
     def weight_initialization(self):
-        for m in self.modules():
-            if isinstance(m, nn.BatchNorm1d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        for m in self.modules(): # 遍历模型中的所有子模块
+            #self.modules() 是 PyTorch 中 nn.Module 类的方法，用于返回模型中所有层的生成器（包括子模块中的层）
+            if isinstance(m, nn.BatchNorm1d): #检查模块 m 是否是 BatchNorm1d 类型的实例
+                nn.init.constant_(m.weight, 1) #将 BatchNorm1d 层中的权重参数初始化为常数 1
+                nn.init.constant_(m.bias, 0) #将 BatchNorm1d 层中的偏置参数初始化为常数 0
 
     def forward(self, x): #点云初始化，输入是稀疏张量，将其转换成点张量  前向传播过程，对输入的稀疏点云数据进行处理，逐步提取特征并完成分类任务
         # x: SparseTensor z: PointTensor  #x是稀疏张量，包含点云数据
@@ -202,11 +205,13 @@ class SPVCNN(nn.Module):
         z1.F = z1.F + self.point_transforms[0](z0.F) #结合点云特征增强模块
 
         #上采样和融合
-        y1 = point_to_voxel(x4, z1)
-        y1.F = self.dropout(y1.F)
-        y1 = self.up1[0](y1)
-        y1 = torchsparse.cat([y1, x3])
-        y1 = self.up1[1](y1)
+        y1 = point_to_voxel(x4, z1)  #将点云数据 z1 转换为体素数据 point_to_voxel 是一个将稀疏点云表示转换为稠密体素表示的函数
+        y1.F = self.dropout(y1.F) #在体素化后的特征上应用 Dropout  y1.F 是体素数据 y1 中的特征张量
+        y1 = self.up1[0](y1)  #应用上采样模块 up1[0] 对体素数据进行上采样
+        y1 = torchsparse.cat([y1, x3]) #将上采样后的特征 y1 与上一阶段的特征 x3 进行拼接
+        # torch.sparse.cat 是一个拼接操作，它将两个张量沿特定维度连接起来
+        y1 = self.up1[1](y1) #再对拼接后的特征进行一次处理
+        ##进行 上采样和特征融合。通过将低分辨率的体素特征（y1）上采样到高分辨率，并与前一阶段的特征（x3）进行拼接，模型能够恢复更多的空间细节并进一步提升特征表示能力。Dropout 在此过程中被应用以防止过拟合，确保模型的泛化能力
 
         y2 = self.up2[0](y1)
         y2 = torchsparse.cat([y2, x2])
