@@ -11,7 +11,8 @@ from core.models.utils import *
 
 __all__ = ['SPVCNN']
 
-
+#个基本的稀疏卷积模块，由 3D 卷积、批归一化（BatchNorm）和激活函数（ReLU）组成。支持自定义卷积核大小、步幅和膨胀率
+#BasicDeconvolutionBlock：用于上采样（反卷积）的模块，与卷积块类似，但使用了转置卷积（transposed convolution）实现
 class BasicConvolutionBlock(nn.Module):
     def __init__(self, inc, outc, ks=3, stride=1, dilation=1):
         super().__init__()
@@ -180,24 +181,25 @@ class SPVCNN(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x): #点云初始化，输入是稀疏张量，将其转换成点张量
         # x: SparseTensor z: PointTensor
         z = PointTensor(x.F, x.C.float())
 
-        x0 = initial_voxelize(z, self.pres, self.vres)
+        x0 = initial_voxelize(z, self.pres, self.vres) #将点云数据转换成稀疏体素
 
         x0 = self.stem(x0)
         z0 = voxel_to_point(x0, z, nearest=False)
         z0.F = z0.F
-
+    #提取特征，同时逐步下采样
         x1 = point_to_voxel(x0, z0)
         x1 = self.stage1(x1)
         x2 = self.stage2(x1)
         x3 = self.stage3(x2)
         x4 = self.stage4(x3)
         z1 = voxel_to_point(x4, z0)
-        z1.F = z1.F + self.point_transforms[0](z0.F)
+        z1.F = z1.F + self.point_transforms[0](z0.F) #结合点云特征增强模块
 
+        #上采样和融合
         y1 = point_to_voxel(x4, z1)
         y1.F = self.dropout(y1.F)
         y1 = self.up1[0](y1)
@@ -222,7 +224,7 @@ class SPVCNN(nn.Module):
         z3 = voxel_to_point(y4, z2)
         z3.F = z3.F + self.point_transforms[2](z2.F)
 
-        out = self.classifier(z3.F)
+        out = self.classifier(z3.F) #输出结果分类
         return out
 
 
