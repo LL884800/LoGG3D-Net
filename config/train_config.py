@@ -1,12 +1,12 @@
 import argparse
-
+//解析和管理训练、优化、数据集配置
 arg_lists = []
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser() //解析命令行传递的参数
 
 
-def add_argument_group(name):
+def add_argument_group(name):  //添加一个新的参数组
     arg = parser.add_argument_group(name)
-    arg_lists.append(arg)
+    arg_lists.append(arg)  //arg_lists保存这些组
     return arg
 
 
@@ -15,20 +15,20 @@ def str2bool(v):
 
 
 # Training
-trainer_arg = add_argument_group('Train')
-trainer_arg.add_argument('--train_pipeline', type=str, default='LOGG3D')
-trainer_arg.add_argument('--resume_training', type=str2bool, default=False)
+trainer_arg = add_argument_group('Train') //定义了一个参数组
+trainer_arg.add_argument('--train_pipeline', type=str, default='LOGG3D') //训练管道名称
+trainer_arg.add_argument('--resume_training', type=str2bool, default=False) //是否从检查点恢复训练
 trainer_arg.add_argument('--resume_checkpoint', type=str, default='')
 
 # Batch setting
-trainer_arg.add_argument('--batch_size', type=int, default=1) # Batch size is limited to 1.
+trainer_arg.add_argument('--batch_size', type=int, default=1) # Batch size is limited to 1.  //批处理的大小
 trainer_arg.add_argument('--train_num_workers', type=int,
-                         default=8)  # per gpu in dist. try 8
+                         default=8)  # per gpu in dist. try 8  //训练过程中使用的工作线程数
 
-# Contrastive
-trainer_arg.add_argument('--train_loss_function',
+# Contrastive  对比学习
+trainer_arg.add_argument('--train_loss_function',  //损失函数
                          type=str, default='quadruplet')  # quadruplet, triplet
-trainer_arg.add_argument('--lazy_loss', type=str2bool, default=False)
+trainer_arg.add_argument('--lazy_loss', type=str2bool, default=False)  //是否懒惰计算损失
 trainer_arg.add_argument('--ignore_zero_loss', type=str2bool, default=False)
 trainer_arg.add_argument('--positives_per_query', type=int, default=2)  # 2
 trainer_arg.add_argument('--negatives_per_query', type=int, default=2)  # 2-18
@@ -45,9 +45,9 @@ trainer_arg.add_argument('--point_loss_weight', type=float, default=1.0)  # 0.1
 trainer_arg.add_argument('--scene_loss_weight', type=float, default=1.0)  # 0.1
 
 # Optimizer arguments
-opt_arg = add_argument_group('Optimizer')
+opt_arg = add_argument_group('Optimizer') //设置优化器类型
 opt_arg.add_argument('--optimizer', type=str, default='adam')  # 'sgd','adam'
-opt_arg.add_argument('--max_epoch', type=int, default=50)  # 20
+opt_arg.add_argument('--max_epoch', type=int, default=50)  # 20  //训练的最大轮数
 opt_arg.add_argument('--base_learning_rate', type=float, default=1e-3)
 opt_arg.add_argument('--momentum', type=float, default=0.8)  # 0.9
 opt_arg.add_argument('--scheduler', type=str,
@@ -56,7 +56,7 @@ opt_arg.add_argument('--scheduler', type=str,
 # Dataset specific configurations
 data_arg = add_argument_group('Data')
 # KittiPointSparseTupleDataset #MulRanPointSparseTupleDataset
-data_arg.add_argument('--dataset', type=str,
+data_arg.add_argument('--dataset', type=str,  //数据集名称
                       default='KittiPointSparseTupleDataset')
 data_arg.add_argument('--collation_type', type=str,
                       default='default')  # default#sparcify_list
@@ -68,7 +68,7 @@ data_arg.add_argument("--pnv_preprocessing", type=str2bool,
                       default=False, help="Preprocessing in dataloader for PNV.")
 
 data_arg.add_argument('--kitti_dir', type=str, default='/mnt/088A6CBB8A6CA742/Datasets/Kitti/dataset/',
-                      help="Path to the KITTI odometry dataset")
+                      help="Path to the KITTI odometry dataset") //数据集路径
 data_arg.add_argument('--kitti_3m_json', type=str,
                       default='positive_sequence_D-3_T-0.json')
 data_arg.add_argument('--kitti_20m_json', type=str,
@@ -103,7 +103,7 @@ data_arg.add_argument('--mulran_data_split', type=dict, default={
 })
 
 # Data loader configs
-data_arg.add_argument('--train_phase', type=str, default="train")
+data_arg.add_argument('--train_phase', type=str, default="train") //数据加载器的训练，验证和测试
 data_arg.add_argument('--train_pickles', type=dict, default={
     'new_dataset': "/path/to/new_dataset/training_both_5_50.pickle",
 })
@@ -121,17 +121,17 @@ data_arg.add_argument('--min_scale', type=float, default=0.8)
 data_arg.add_argument('--max_scale', type=float, default=1.2)
 
 # Misc
-misc_arg = add_argument_group('Misc')
-misc_arg.add_argument('--experiment_name', type=str, default='run')
+misc_arg = add_argument_group('Misc') //设置实验的名称
+misc_arg.add_argument('--experiment_name', type=str, default='run') //输出目录
 misc_arg.add_argument('--job_id', type=str, default='0')
 misc_arg.add_argument('--save_model_after_epoch', type=str2bool, default=True)
 misc_arg.add_argument('--eval_model_after_epoch', type=str2bool, default=False)
-misc_arg.add_argument('--out_dir', type=str, default='logs')
+misc_arg.add_argument('--out_dir', type=str, default='logs') //保存模型的频率
 misc_arg.add_argument('--loss_log_step', type=int, default=10)
 misc_arg.add_argument('--checkpoint_epoch_step', type=int, default=3)
 
 
-def get_config():
+def get_config():   //获取配置函数
     args = parser.parse_args()
     return args
 
